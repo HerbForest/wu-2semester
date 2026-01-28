@@ -1,0 +1,13 @@
+@use "./abstracts/variable" as v;
+@use "components/card";
+@use "components/banner";
+
+:root {
+    color-scheme: dark light;
+}
+body {
+    font-family: system-ui, sans-serif;
+}
+h1 {
+    background-color: v.$primary-color;
+}

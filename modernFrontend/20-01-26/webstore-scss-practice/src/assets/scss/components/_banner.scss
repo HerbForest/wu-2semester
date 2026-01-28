@@ -1,0 +1,7 @@
+@use "../abstracts/variable" as v;
+.banner {
+    bagground-color: v.$banner-color;
+
+    &__tekst {
+    }
+}
