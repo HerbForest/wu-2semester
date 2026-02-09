@@ -30,9 +30,17 @@ let shoppingList = ref([
 </script>
 <template>
     <ul>
-        <li v-for="item in shoppingList" :key="item.id">
+        <li  v-for="item in shoppingList" :key="item.id" :class="{ bought: item.bought}">
             jeg skal have {{ item.name }}
-            <button @click="bought = !bought">X</button>
+            <input type="checkbox" :class="bought" v-model="item.bought">{{}}</input>
         </li>
     </ul>
 </template>
+<style scoped>
+.bought{
+
+    text-decoration: line-through;
+    opacity: 0,6
+
+}
+</style>
