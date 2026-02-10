@@ -8,6 +8,7 @@ import ConditionalRendering from "@/components/ConditionalRendering.vue";
 import VshowVSVIf from "@/components/VshowVSVIf.vue";
 import BookList from "@/components/BookList.vue";
 import ShoppingList from "@/components/ShoppingList.vue";
+import TaskManager from "@/components/TaskManager.vue";
 
 const isMessageVisible = ref(true);
 </script>
@@ -31,6 +32,8 @@ const isMessageVisible = ref(true);
     opg 6 <BookList />
 
     opg 7 <ShoppingList />
+
+    opg 19 <TaskManager />
 </template>
 
 <style scoped></style>
