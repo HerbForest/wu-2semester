@@ -1,11 +1,14 @@
-<script setup></script>
+<script setup>
+import Counter from "@/components/Counter.vue";
+import { ref } from "vue";
+const currentCount = ref(0);
+const handleCountChange = (newValue) => {
+    currentCount.value = newValue;
+};
+</script>
 
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+    <Counter @countChanged="handleCountChange" />
 </template>
 
 <style scoped></style>
