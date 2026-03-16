@@ -1,0 +1,29 @@
+{
+  "name": "my-first-action",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/"
+  },
+  "jest": {
+    "collectCoverage": true,
+    "coverageThreshold": {
+      "global": {
+        "lines": 80
+      }
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@eslint/json": "^1.1.0",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
+    "jest": "^30.3.0"
+  }
+}
