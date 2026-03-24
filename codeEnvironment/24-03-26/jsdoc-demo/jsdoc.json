@@ -1,0 +1,15 @@
+{
+  "source": {
+    "include": ["src"],
+    "includePattern": ".js$"
+  },
+  "opts": {
+    "destination": "./docs",
+    "recurse": true,
+    "turtorials": "./turtorials",
+    "template": "./node_modules/docdash"
+  },
+  "docdash": {
+    "turtorialsLabel": "Documents"
+  }
+}
