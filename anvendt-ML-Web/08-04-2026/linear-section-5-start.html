@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+    <head>
+        <title>TensorFlow.js Linear Regression (Tensor ops)</title>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+    </head>
+
+    <body>
+        <h2>Linear Regression (TensorFlow.js - low level)</h2>
+
+        <button onclick="train()">Train</button>
+        <button onclick="test()">Test</button>
+
+        <br /><br />
+        <input type="number" id="input" placeholder="Square feet" />
+        <button onclick="predict()">Predict</button>
+
+        <p id="output"></p>
+
+        <script>
+            let points;
+            let normalisedFeature;
+            let normalisedLabel;
+            let trainingFeatureTensor;
+            let testingFeatureTensor;
+            let trainingLabelTensor;
+            let testingLabelTensor;
+
+            // 🔥 MODEL (m og c)
+            let m = tf.variable(tf.scalar(Math.random()));
+            let c = tf.variable(tf.scalar(Math.random()));
+
+            const f = (x) => m.mul(x).add(c);
+
+            const loss = (pred, label) => pred.sub(label).square().mean();
+
+            const optimizer = tf.train.adam(0.1);
+
+            // 📊 Plot
+            async function plot(pointsArray, predictedPointsArray = null) {
+                const values = [pointsArray];
+                const series = ["original"];
+
+                if (predictedPointsArray) {
+                    values.push(predictedPointsArray);
+                    series.push("predicted");
+                }
+
+                tfvis.render.scatterplot(
+                    { name: "House Price vs Size" },
+                    { values, series },
+                    { xLabel: "Square feet", yLabel: "Price" },
+                );
+            }
+
+            // 📈 Prediction line
+            async function plotPredictionLine() {
+                const [xs, ys] = tf.tidy(() => {
+                    const normalisedXs = tf.linspace(0, 1, 100);
+                    const normalisedYs = f(normalisedXs);
+
+                    const xs = denormalise(
+                        normalisedXs,
+                        normalisedFeature.min,
+                        normalisedFeature.max,
+                    );
+
+                    const ys = denormalise(normalisedYs, normalisedLabel.min, normalisedLabel.max);
+
+                    return [xs.dataSync(), ys.dataSync()];
+                });
+
+                const predictedPoints = Array.from(xs).map((x, i) => ({
+                    x,
+                    y: ys[i],
+                }));
+
+                await plot(points, predictedPoints);
+            }
+
+            // 🔁 Train
+            async function train() {
+                const epochs = 50;
+
+                for (let i = 0; i < epochs; i++) {
+                    optimizer.minimize(() => {
+                        const preds = f(trainingFeatureTensor);
+                        return loss(preds, trainingLabelTensor);
+                    });
+
+                    if (i % 5 === 0) {
+                        console.log("Epoch:", i);
+                        console.log("m:", m.dataSync()[0], "c:", c.dataSync()[0]);
+                        await plotPredictionLine();
+                    }
+
+                    await tf.nextFrame();
+                }
+
+                await plotPredictionLine();
+            }
+
+            // 🧪 Test
+            function test() {
+                const preds = f(testingFeatureTensor);
+                const lossValue = loss(preds, testingLabelTensor).dataSync()[0];
+                console.log("Test loss:", lossValue);
+            }
+
+            // 🔮 Predict
+            function predict() {
+                const val = parseInt(document.getElementById("input").value);
+
+                tf.tidy(() => {
+                    const inputTensor = tf.tensor1d([val]);
+
+                    const normInput = normalise(
+                        inputTensor,
+                        normalisedFeature.min,
+                        normalisedFeature.max,
+                    );
+
+                    const normOutput = f(normInput.tensor);
+
+                    const output = denormalise(
+                        normOutput,
+                        normalisedLabel.min,
+                        normalisedLabel.max,
+                    );
+
+                    document.getElementById("output").innerText =
+                        "Predicted price: $" + Math.round(output.dataSync()[0]);
+                });
+            }
+
+            // 📐 Normalise
+            function normalise(tensor, min = null, max = null) {
+                const tMin = min || tensor.min();
+                const tMax = max || tensor.max();
+
+                const norm = tensor.sub(tMin).div(tMax.sub(tMin));
+
+                return { tensor: norm, min: tMin, max: tMax };
+            }
+
+            function denormalise(tensor, min, max) {
+                return tensor.mul(max.sub(min)).add(min);
+            }
+
+            // 🚀 Run
+            async function run() {
+                const data = tf.data.csv("kc_house_data.csv");
+
+                const pointsDataset = data.map((row) => ({
+                    x: row.sqft_living,
+                    y: row.price,
+                }));
+
+                points = await pointsDataset.toArray();
+
+                tf.util.shuffle(points);
+
+                await plot(points);
+
+                const featureTensor = tf.tensor2d(
+                    points.map((p) => p.x),
+                    [points.length, 1],
+                );
+                const labelTensor = tf.tensor2d(
+                    points.map((p) => p.y),
+                    [points.length, 1],
+                );
+
+                normalisedFeature = normalise(featureTensor);
+                normalisedLabel = normalise(labelTensor);
+
+                [trainingFeatureTensor, testingFeatureTensor] = tf.split(
+                    normalisedFeature.tensor,
+                    2,
+                );
+
+                [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabel.tensor, 2);
+            }
+
+            run();
+        </script>
+    </body>
+</html>

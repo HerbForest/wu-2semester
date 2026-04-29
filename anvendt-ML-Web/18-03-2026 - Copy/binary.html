@@ -13,7 +13,9 @@
     <header>
         <div class="section no-pad-bot" id="index-banner">
             <div class="container">
-                <h5 class="header center blue-text small">Linear regression with TensorFlow.js</h5>
+                <h5 class="header center blue-text small">
+                    binary classification with tensorflow.js
+                </h5>
                 <div class="row center">
                     <h6 class="header col s12 light">
                         Train a model to predict house price from living space.
@@ -100,24 +102,30 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ✅ NY PREDICT SEKTION -->
                     <div class="col s12 m6">
                         <div class="icon-block">
-                            <h3 class="center light-blue-text">
+                            <h3 class="center light-green-text">
                                 <i class="material-icons" style="font-size: 2em">timeline</i>
                             </h3>
                             <h5 class="center">Predict</h5>
                             <label
-                                >Square feet of living space:
-                                <input type="number" id="prediction-input" placeholder="2000" />
-                            </label>
+                                >Square Feet:
+                                <input type="number" id="prediction-input-1" placeholder="2000"
+                            /></label>
+                            <label
+                                >House Price ($):
+                                <input type="number" id="prediction-input-2" placeholder="1000000"
+                            /></label>
                             <button
                                 autocomplete="off"
                                 id="predict-button"
-                                class="waves-effect light-blue waves-light btn"
+                                class="waves-effect light-green waves-light btn"
                                 disabled
                                 onclick="predict()"
                             >
-                                Predict house price
+                                Predict class
                             </button>
                             <p><strong id="prediction-output"></strong></p>
                         </div>
@@ -127,7 +135,6 @@
         </div>
 
         <script type="text/javascript">
-            // 👇 SHARED VARIABLES - moved out of run() so all functions can access them
             let model;
             let normalisedFeature;
             let normalisedLabel;
@@ -150,54 +157,146 @@
                     { xLabel: featureName, yLabel: "Price" },
                 );
             }
+
             async function plotPredictionLine() {
                 const [xs, ys] = tf.tidy(() => {
                     const normalisedXs = tf.linspace(0, 1, 100);
                     const normalisedYs = model.predict(normalisedXs.reshape([100, 1]));
-
                     const xs = denormalise(
                         normalisedXs,
                         normalisedFeature.min,
                         normalisedFeature.max,
                     );
                     const ys = denormalise(normalisedYs, normalisedLabel.min, normalisedLabel.max);
-
                     return [xs.dataSync(), ys.dataSync()];
                 });
-                //prediction points
                 const predictedPoints = Array.from(xs).map((val, i) => {
                     return { x: val, y: ys[i] };
                 });
                 await plot(points, "Square feet", predictedPoints);
             }
-            async function plotParams(weight, params) {
+
+            async function plotClasses(
+                pointsArray,
+                classKey,
+                size = 400,
+                equalizeClassSizes = false,
+            ) {
+                const allSeries = {};
+                pointsArray.forEach((point) => {
+                    const seriesName = `${classKey}: ${point.class}`;
+                    let series = allSeries[seriesName];
+                    if (!series) {
+                        series = [];
+                        allSeries[seriesName] = series;
+                    }
+                    series.push(point);
+                });
+
+                if (equalizeClassSizes) {
+                    // ✅ Rettet: object → Object, lenght → length
+                    let maxLength = null;
+                    Object.values(allSeries).forEach((series) => {
+                        if (
+                            maxLength === null ||
+                            (series.length < maxLength && series.length >= 100)
+                        ) {
+                            maxLength = series.length;
+                        }
+                    });
+                    Object.keys(allSeries).forEach((keyName) => {
+                        allSeries[keyName] = allSeries[keyName].slice(0, maxLength);
+                        if (allSeries[keyName].length < 100) {
+                            delete allSeries[keyName];
+                        }
+                    });
+                }
+
+                tfvis.render.scatterplot(
+                    {
+                        // ✅ Rettet stavefejl: "suare" → "square"
+                        name: `square feet vs House Price`,
+                        styles: { width: `100%` },
+                    },
+                    {
+                        values: Object.values(allSeries),
+                        series: Object.keys(allSeries),
+                    },
+                    {
+                        xLabel: "square feet",
+                        yLabel: "price",
+                        height: size,
+                        width: size * 1.5,
+                    },
+                );
+            }
+
+            async function plotParams(weight, bias) {
+                // ✅ Rettet: tilføjet bias som parameter i stedet for udefineret variabel
                 model.getLayer(null, 0).setWeights([tf.tensor2d([[weight]]), tf.tensor1d([bias])]);
-                await plotPredictionLine();
+                await plotPredictionHeatmap();
                 const layer = model.getLayer(undefined, 0);
                 tfvis.show.layer({ name: `layer 1` }, layer);
             }
-            //normalise function
+
             function normalise(tensor, previousMin = null, previousMax = null) {
-                const min = previousMin || tensor.min();
-                const max = previousMax || tensor.max();
-                const normalisedTensor = tensor.sub(min).div(max.sub(min));
-                return {
-                    tensor: normalisedTensor,
-                    min,
-                    max,
-                };
+                // ✅ Rettet: lenght → length, featureDimensons → featureDimensions
+                const featureDimensions = tensor.shape.length > 1 && tensor.shape[1];
+                if (featureDimensions && featureDimensions > 1) {
+                    const features = tf.split(tensor, featureDimensions, 1);
+                    const normalisedFeatures = features.map((featureTensor, i) =>
+                        normalise(
+                            featureTensor,
+                            previousMin ? previousMin[i] : null,
+                            previousMax ? previousMax[i] : null,
+                        ),
+                    );
+                    const returnTensor = tf.concat(
+                        normalisedFeatures.map((f) => f.tensor),
+                        1,
+                    );
+                    const min = normalisedFeatures.map((f) => f.min);
+                    const max = normalisedFeatures.map((f) => f.max);
+                    return { tensor: returnTensor, min, max };
+                } else {
+                    // ✅ Rettet: tilføjet manglende else-blok med korrekte krøllede parenteser
+                    const min = previousMin || tensor.min();
+                    const max = previousMax || tensor.max();
+                    const normalisedTensor = tensor.sub(min).div(max.sub(min));
+                    return { tensor: normalisedTensor, min, max };
+                }
             }
 
             function denormalise(tensor, min, max) {
-                return tensor.mul(max.sub(min)).add(min);
+                // ✅ Rettet: = → && (assignment i stedet for sammenligning)
+                const featureDimensions = tensor.shape.length > 1 && tensor.shape[1];
+                if (featureDimensions && featureDimensions > 1) {
+                    const features = tf.split(tensor, featureDimensions, 1);
+                    const denormalisedFeatures = features.map((featureTensor, i) =>
+                        denormalise(featureTensor, min[i], max[i]),
+                    );
+                    const returnTensor = tf.concat(denormalisedFeatures, 1);
+                    return returnTensor;
+                } else {
+                    // ✅ Rettet: manglende else-blok og ekstra afsluttende }
+                    const denormalisedTensor = tensor.mul(max.sub(min)).add(min);
+                    return denormalisedTensor;
+                }
             }
 
             function createModel() {
                 const model = tf.sequential();
                 model.add(
                     tf.layers.dense({
-                        inputDim: 1,
-                        units: 5,
+                        inputDim: 2,
+                        units: 10,
+                        activation: "sigmoid",
+                        useBias: true,
+                    }),
+                );
+                model.add(
+                    tf.layers.dense({
+                        units: 10,
                         activation: "sigmoid",
                         useBias: true,
                     }),
@@ -209,8 +308,12 @@
                         useBias: true,
                     }),
                 );
-                const optimizer = tf.train.adam(0.1);
-                model.compile({ optimizer, loss: "meanSquaredError" });
+                const optimizer = tf.train.adam();
+                model.compile({
+                    optimizer,
+                    loss: "binaryCrossentropy",
+                    metrics: ["accuracy"],
+                });
                 return model;
             }
 
@@ -219,12 +322,12 @@
                     "loss",
                 ]);
                 return model.fit(trainingFeatureTensor, trainingLabelTensor, {
-                    epochs: 20,
+                    epochs: 200,
                     shuffle: true,
                     callbacks: {
                         onEpochEnd,
                         onEpochBegin: async function () {
-                            await plotPredictionLine();
+                            await plotPredictionHeatmap();
                             tfvis.show.layer({ name: `Layer 1` }, model.getLayer(undefined, 0));
                         },
                     },
@@ -243,20 +346,21 @@
                 const pointsDataset = houseSalesDataset.map((record) => ({
                     x: record.sqft_living,
                     y: record.price,
+                    // ✅ Rettet: duplicate class-key fjernet, beholder waterfront
+                    class: record.waterfront,
                 }));
                 points = await pointsDataset.toArray();
                 if (points.length % 2 !== 0) {
                     points.pop();
                 }
                 tf.util.shuffle(points);
-                await plot(points, "Square feet");
+                await plotClasses(points, "waterfront");
 
-                const featureValues = points.map((p) => p.x);
-                const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 1]);
-                const labelValues = points.map((p) => p.y);
+                const featureValues = points.map((p) => [p.x, p.y]);
+                const featureTensor = tf.tensor2d(featureValues);
+                const labelValues = points.map((p) => p.class);
                 const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
 
-                // 👇 Assign to shared variables instead of const
                 normalisedFeature = normalise(featureTensor);
                 normalisedLabel = normalise(labelTensor);
                 [trainingFeatureTensor, testingFeatureTensor] = tf.split(
@@ -270,15 +374,65 @@
                 document.getElementById("load-button").disabled = false;
             }
 
-            // 👇 NEW FUNCTIONS added here
+            async function plotPredictionHeatmap(name = "Predicted class", size = 400) {
+                const [valuesPromise, xTicksPromise, yTicksPromise] = tf.tidy(() => {
+                    const gridSize = 50;
+                    const predictionColumns = [];
+                    for (let colIndex = 0; colIndex < gridSize; colIndex++) {
+                        const colInputs = [];
+                        const x = colIndex / gridSize;
+                        for (let rowIndex = 0; rowIndex < gridSize; rowIndex++) {
+                            const y = (gridSize - rowIndex) / gridSize;
+                            colInputs.push([x, y]);
+                        }
+                        const colPredictions = model.predict(tf.tensor2d(colInputs));
+                        predictionColumns.push(colPredictions);
+                    }
+                    const valuesTensor = tf.stack(predictionColumns);
+                    const normalisedLabelsTensor = tf.linspace(0, 1, gridSize);
+                    const xTicksTensor = denormalise(
+                        normalisedLabelsTensor,
+                        normalisedFeature.min[0],
+                        normalisedFeature.max[0],
+                    );
+                    const yTicksTensor = denormalise(
+                        normalisedLabelsTensor.reverse(),
+                        normalisedFeature.min[1],
+                        normalisedFeature.max[1],
+                    );
+                    return [valuesTensor.array(), xTicksTensor.array(), yTicksTensor.array()];
+                });
+
+                const values = await valuesPromise;
+                const xTicks = await xTicksPromise;
+                const xTickLabels = xTicks.map((l) => (l / 1000).toFixed(1) + "k sqft");
+                const yTicks = await yTicksPromise;
+                const yTickLabels = yTicks.map((l) => "$" + (l / 1000).toFixed(0) + "k");
+                const data = { values, xTickLabels, yTickLabels };
+
+                tfvis.render.heatmap({ name: `${name} (local)`, tab: "Predictions" }, data, {
+                    height: size,
+                });
+                tfvis.render.heatmap({ name: `${name} (full domain)`, tab: "Predictions" }, data, {
+                    height: size,
+                    domain: [0, 1],
+                });
+            }
+
             async function predict() {
-                const predictionInput = parseInt(document.getElementById("prediction-input").value);
-                if (isNaN(predictionInput)) {
+                const predictionInputOne = parseInt(
+                    document.getElementById("prediction-input-1").value,
+                );
+                const predictionInputTwo = parseInt(
+                    document.getElementById("prediction-input-2").value,
+                );
+                if (isNaN(predictionInputOne)) {
                     alert("Please enter a valid number");
-                    return;
+                } else if (isNaN(predictionInputTwo)) {
+                    alert("Please enter a valid number");
                 } else {
                     tf.tidy(() => {
-                        const inputTensor = tf.tensor1d([predictionInput]);
+                        const inputTensor = tf.tensor2d([[predictionInputOne, predictionInputTwo]]);
                         const normalisedInput = normalise(
                             inputTensor,
                             normalisedFeature.min,
@@ -292,18 +446,22 @@
                         );
                         const outputValue = outputTensor.dataSync()[0];
                         document.getElementById("prediction-output").innerHTML =
-                            `the predicted house price is <br/>` +
-                            `<span style="font-size: 2em">\$${(outputValue / 1000).toFixed(0) * 1000}</span>`;
+                            `The likelihood of being a waterfront property is: ${(outputValue * 100).toFixed(1)}%`;
                     });
                 }
             }
 
             async function load() {
                 const loadedModel = await tf.loadLayersModel("localstorage://my-model");
-                const optimizer = tf.train.sgd(0.1);
-                loadedModel.compile({ optimizer, loss: "meanSquaredError" });
+                const optimizer = tf.train.adam();
+                // ✅ Rettet: sgd → adam og meanSquaredError → binaryCrossentropy (matcher modellen)
+                loadedModel.compile({
+                    optimizer,
+                    loss: "binaryCrossentropy",
+                    metrics: ["accuracy"],
+                });
                 model = loadedModel;
-                await plotPredictionLine();
+                await plotPredictionHeatmap();
                 document.getElementById("model-status").innerHTML =
                     "Model loaded from local storage";
                 document.getElementById("predict-button").disabled = false;
@@ -332,7 +490,7 @@
                     model.getLayer(undefined, 0),
                 );
                 await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
-                await plotPredictionLine();
+                await plotPredictionHeatmap();
                 document.getElementById("model-status").innerHTML = "Training complete";
                 document.getElementById("test-button").disabled = false;
                 document.getElementById("save-button").disabled = false;
